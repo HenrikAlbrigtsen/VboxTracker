@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VBoxTracker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=DM+Sans:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0f1117;
+    --surface: #161b27;
+    --card: #1c2333;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.12);
+    --text: #e8eaf0;
+    --muted: #7a8099;
+    --hint: #4a5168;
+    --green: #22c55e;
+    --green-dim: rgba(34,197,94,0.12);
+    --green-glow: rgba(34,197,94,0.06);
+    --teal: #2dd4bf;
+    --amber: #fbbf24;
+    --red: #f87171;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'DM Sans', sans-serif;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+  .layout { max-width: 860px; margin: 0 auto; padding: 2.5rem 1.5rem; }
+
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 2.5rem; }
+  .brand { display: flex; align-items: baseline; gap: 10px; }
+  .brand h1 { font-family: var(--mono); font-size: 18px; font-weight: 700; letter-spacing: -0.02em; color: var(--text); }
+  .brand .slash { color: var(--hint); }
+  .brand .sub { font-family: var(--mono); font-size: 13px; color: var(--muted); }
+  .status { display: flex; align-items: center; gap: 7px; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--hint); transition: background 0.3s; }
+  .dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.5} }
+
+  .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 2rem; }
+  .stat { background: var(--surface); border: 0.5px solid var(--border); border-radius: 10px; padding: 16px; }
+  .stat-label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--hint); margin-bottom: 8px; }
+  .stat-val { font-family: var(--mono); font-size: 26px; font-weight: 700; color: var(--text); line-height: 1; }
+  .stat-sub { font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  .tabs { display: flex; gap: 2px; background: var(--surface); padding: 3px; border-radius: 8px; width: fit-content; margin-bottom: 1.5rem; border: 0.5px solid var(--border); }
+  .tab { font-family: var(--mono); font-size: 12px; padding: 6px 14px; border-radius: 6px; border: none; cursor: pointer; background: transparent; color: var(--muted); transition: all 0.15s; letter-spacing: 0.03em; }
+  .tab.active { background: var(--card); color: var(--text); border: 0.5px solid var(--border2); }
+
+  .section-label { font-family: var(--mono); font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--hint); margin-bottom: 12px; }
+
+  .vm-card { background: var(--surface); border: 0.5px solid var(--border); border-radius: 10px; padding: 14px 16px; margin-bottom: 8px; display: flex; align-items: center; gap: 14px; transition: border-color 0.2s; }
+  .vm-card:hover { border-color: var(--border2); }
+  .vm-led { width: 6px; height: 6px; border-radius: 50%; background: var(--hint); flex-shrink: 0; }
+  .vm-led.active { background: var(--green); box-shadow: 0 0 5px var(--green); }
+  .vm-info { flex: 1; min-width: 0; }
+  .vm-name { font-family: var(--mono); font-size: 13px; font-weight: 500; color: var(--text); margin-bottom: 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .vm-bar-bg { height: 3px; background: var(--card); border-radius: 2px; }
+  .vm-bar-fill { height: 3px; border-radius: 2px; background: var(--green); transition: width 0.5s ease; }
+  .vm-meta { font-family: var(--mono); font-size: 10px; color: var(--hint); margin-top: 5px; }
+  .vm-count { font-family: var(--mono); font-size: 20px; font-weight: 700; color: var(--text); min-width: 36px; text-align: right; }
+
+  .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 7px; }
+  .bar-day { font-family: var(--mono); font-size: 11px; color: var(--muted); min-width: 60px; text-align: right; }
+  .bar-track { flex: 1; height: 22px; background: var(--surface); border-radius: 4px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--green-dim); border-right: 2px solid var(--green); display: flex; align-items: center; padding-left: 8px; transition: width 0.4s ease; border-radius: 4px; }
+  .bar-fill-text { font-family: var(--mono); font-size: 10px; color: var(--green); white-space: nowrap; }
+  .bar-n { font-family: var(--mono); font-size: 12px; color: var(--muted); min-width: 24px; text-align: right; }
+
+  .log-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 0.5px solid var(--border); }
+  .log-row:last-child { border-bottom: none; }
+  .log-time { font-family: var(--mono); font-size: 11px; color: var(--hint); min-width: 130px; }
+  .log-vm { font-family: var(--mono); font-size: 12px; color: var(--text); }
+  .log-badge { font-family: var(--mono); font-size: 10px; background: var(--green-dim); color: var(--green); padding: 2px 8px; border-radius: 4px; }
+
+  .error-banner { background: rgba(248,113,113,0.1); border: 0.5px solid rgba(248,113,113,0.3); border-radius: 8px; padding: 12px 16px; font-family: var(--mono); font-size: 12px; color: var(--red); margin-bottom: 1.5rem; line-height: 1.6; }
+  .error-banner code { background: rgba(248,113,113,0.15); padding: 1px 6px; border-radius: 3px; }
+
+  .empty { text-align: center; padding: 3rem 1rem; color: var(--hint); font-family: var(--mono); font-size: 13px; }
+
+  .heatmap { display: flex; flex-direction: column; gap: 6px; }
+  .heatmap-week { display: flex; gap: 5px; }
+  .heatmap-cell { width: 14px; height: 14px; border-radius: 3px; background: var(--surface); position: relative; cursor: default; border: 0.5px solid var(--border); }
+  .heatmap-cell[data-n="0"] { background: var(--surface); }
+  .heatmap-cell[data-n="1"] { background: rgba(34,197,94,0.2); border-color: rgba(34,197,94,0.3); }
+  .heatmap-cell[data-n="2"] { background: rgba(34,197,94,0.35); border-color: rgba(34,197,94,0.5); }
+  .heatmap-cell[data-n="3"] { background: rgba(34,197,94,0.55); border-color: rgba(34,197,94,0.7); }
+  .heatmap-cell.many { background: var(--green); border-color: var(--green); }
+
+  .refresh-hint { font-family: var(--mono); font-size: 11px; color: var(--hint); text-align: right; margin-top: 0.5rem; }
+
+  #view-progress { display: none; }
+  #view-log { display: none; }
+</style>
+</head>
+<body>
+<div class="layout">
+
+  <header>
+    <div class="brand">
+      <h1>VBoxTracker</h1>
+      <span class="slash">/</span>
+      <span class="sub">session monitor</span>
+    </div>
+    <div class="status">
+      <div class="dot" id="status-dot"></div>
+      <span id="status-text">connecting...</span>
+    </div>
+  </header>
+
+  <div id="error-banner" style="display:none" class="error-banner"></div>
+
+  <div class="stats">
+    <div class="stat">
+      <div class="stat-label">Total sessions</div>
+      <div class="stat-val" id="s-total">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">Today</div>
+      <div class="stat-val" id="s-today">—</div>
+      <div class="stat-sub" id="s-today-label"></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">This week</div>
+      <div class="stat-val" id="s-week">—</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">VMs tracked</div>
+      <div class="stat-val" id="s-vms">—</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="setTab('vms')">VMs</button>
+    <button class="tab" onclick="setTab('progress')">Progress</button>
+    <button class="tab" onclick="setTab('log')">Log</button>
+  </div>
+
+  <!-- VMs view -->
+  <div id="view-vms">
+    <div class="section-label">all machines</div>
+    <div id="vm-list"><div class="empty">Waiting for data...</div></div>
+  </div>
+
+  <!-- Progress view -->
+  <div id="view-progress">
+    <div class="section-label">sessions per day — last 14 days</div>
+    <div id="day-bars"></div>
+    <div style="margin-top:2rem" class="section-label">activity heatmap — last 12 weeks</div>
+    <div id="heatmap"></div>
+  </div>
+
+  <!-- Log view -->
+  <div id="view-log">
+    <div class="section-label">recent sessions</div>
+    <div id="log-list"><div class="empty">No sessions yet.</div></div>
+  </div>
+
+  <div class="refresh-hint" id="last-refresh">—</div>
+</div>
+
+<script>
+const API = 'http://localhost:8765/';
+let data = { sessions: [] };
+let activeTab = 'vms';
+
+function todayStr() {
+  return new Date().toISOString().slice(0, 10);
+}
+function dateStr(d) {
+  return d.toISOString().slice(0, 10);
+}
+function fmtTime(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('no-NO', { day: '2-digit', month: 'short', year: 'numeric' })
+    + ' ' + d.toLocaleTimeString('no-NO', { hour: '2-digit', minute: '2-digit' });
+}
+
+async function fetchData() {
+  try {
+    const res = await fetch(API + '?t=' + Date.now());
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    data = await res.json();
+    document.getElementById('status-dot').className = 'dot live';
+    document.getElementById('status-text').textContent = 'live';
+    document.getElementById('error-banner').style.display = 'none';
+    document.getElementById('last-refresh').textContent = 'last updated ' + new Date().toLocaleTimeString('no-NO');
+    render();
+  } catch (e) {
+    document.getElementById('status-dot').className = 'dot';
+    document.getElementById('status-text').textContent = 'offline';
+    document.getElementById('error-banner').style.display = 'block';
+    document.getElementById('error-banner').innerHTML =
+      'Cannot reach tracker. Make sure <code>Start-Tracker.bat</code> is running, then refresh.<br>' +
+      'Error: ' + e.message;
+  }
+}
+
+function setTab(tab) {
+  activeTab = tab;
+  document.querySelectorAll('.tab').forEach(t =>
+    t.classList.toggle('active', t.textContent.toLowerCase() === tab ||
+      (tab === 'vms' && t.textContent === 'VMs') ||
+      (tab === 'progress' && t.textContent === 'Progress') ||
+      (tab === 'log' && t.textContent === 'Log'))
+  );
+  document.getElementById('view-vms').style.display = tab === 'vms' ? '' : 'none';
+  document.getElementById('view-progress').style.display = tab === 'progress' ? '' : 'none';
+  document.getElementById('view-log').style.display = tab === 'log' ? '' : 'none';
+  render();
+}
+
+function render() {
+  const sessions = data.sessions || [];
+  const today = todayStr();
+
+  const now = new Date();
+  const weekAgo = new Date(now); weekAgo.setDate(weekAgo.getDate() - 7);
+  const todayCount = sessions.filter(s => s.ts.slice(0,10) === today).length;
+  const weekCount = sessions.filter(s => new Date(s.ts) >= weekAgo).length;
+
+  // Unique VMs
+  const vmSet = new Set(sessions.map(s => s.vm));
+  document.getElementById('s-total').textContent = sessions.length;
+  document.getElementById('s-today').textContent = todayCount;
+  document.getElementById('s-today-label').textContent = 'sessions today';
+  document.getElementById('s-week').textContent = weekCount;
+  document.getElementById('s-vms').textContent = vmSet.size;
+
+  if (activeTab === 'vms') renderVMs(sessions, vmSet);
+  else if (activeTab === 'progress') renderProgress(sessions);
+  else renderLog(sessions);
+}
+
+function renderVMs(sessions, vmSet) {
+  const vms = [...vmSet];
+  const counts = {};
+  vms.forEach(v => counts[v] = 0);
+  sessions.forEach(s => { if (counts[s.vm] !== undefined) counts[s.vm]++; });
+  const sorted = vms.sort((a, b) => counts[b] - counts[a]);
+  const max = Math.max(1, ...Object.values(counts));
+
+  if (!sorted.length) {
+    document.getElementById('vm-list').innerHTML = '<div class="empty">No sessions yet — start a VM and it will appear here.</div>';
+    return;
+  }
+
+  document.getElementById('vm-list').innerHTML = sorted.map(vm => {
+    const c = counts[vm];
+    const pct = Math.round((c / max) * 100);
+    const lastSess = sessions.filter(s => s.vm === vm).slice(-1)[0];
+    const lastStr = lastSess ? 'last: ' + fmtTime(lastSess.ts) : 'never opened';
+    return `<div class="vm-card">
+      <div class="vm-led ${c > 0 ? 'active' : ''}"></div>
+      <div class="vm-info">
+        <div class="vm-name">${vm}</div>
+        <div class="vm-bar-bg"><div class="vm-bar-fill" style="width:${pct}%"></div></div>
+        <div class="vm-meta">${c} session${c !== 1 ? 's' : ''} &nbsp;·&nbsp; ${lastStr}</div>
+      </div>
+      <div class="vm-count">${c}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderProgress(sessions) {
+  // 14-day bar chart
+  const days = [];
+  for (let i = 13; i >= 0; i--) {
+    const d = new Date(); d.setDate(d.getDate() - i);
+    days.push(dateStr(d));
+  }
+  const dayCounts = {};
+  days.forEach(d => dayCounts[d] = 0);
+  sessions.forEach(s => { const k = s.ts.slice(0,10); if (dayCounts[k] !== undefined) dayCounts[k]++; });
+  const maxDay = Math.max(1, ...Object.values(dayCounts));
+
+  document.getElementById('day-bars').innerHTML = days.map(d => {
+    const c = dayCounts[d];
+    const pct = Math.round((c / maxDay) * 100);
+    const label = new Date(d + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    return `<div class="bar-row">
+      <div class="bar-day">${label}</div>
+      <div class="bar-track">
+        <div class="bar-fill" style="width:${Math.max(pct, c > 0 ? 4 : 0)}%">
+          <span class="bar-fill-text">${c > 0 ? c + (c === 1 ? ' session' : ' sessions') : ''}</span>
+        </div>
+      </div>
+      <div class="bar-n">${c}</div>
+    </div>`;
+  }).join('');
+
+  // Heatmap: 12 weeks
+  const heatEl = document.getElementById('heatmap');
+  const cells = {};
+  sessions.forEach(s => {
+    const k = s.ts.slice(0,10);
+    cells[k] = (cells[k] || 0) + 1;
+  });
+
+  const today = new Date();
+  // Go back to the start of 12 weeks ago
+  let start = new Date(today);
+  start.setDate(start.getDate() - (12 * 7 - 1));
+  // Align to Sunday
+  const dow = start.getDay();
+  start.setDate(start.getDate() - dow);
+
+  let html = '<div style="display:flex;gap:5px">';
+  let current = new Date(start);
+  const end = new Date(today); end.setDate(end.getDate() + (6 - today.getDay()));
+
+  let col = 0;
+  html += '<div style="display:flex;flex-direction:column;gap:5px">';
+  while (current <= end) {
+    const k = dateStr(current);
+    const n = cells[k] || 0;
+    let cls = 'heatmap-cell';
+    if (n >= 5) cls += ' many';
+    const title = k + ': ' + n + ' session' + (n !== 1 ? 's' : '');
+    html += `<div class="${cls}" data-n="${Math.min(n,3)}" title="${title}"></div>`;
+    if (current.getDay() === 6) {
+      html += '</div><div style="display:flex;flex-direction:column;gap:5px">';
+      col++;
+    }
+    current.setDate(current.getDate() + 1);
+  }
+  html += '</div></div>';
+  html += '<div style="display:flex;align-items:center;gap:8px;margin-top:10px;font-family:var(--mono);font-size:11px;color:var(--hint)">';
+  html += '<span>less</span>';
+  [0,1,2,3,'many'].forEach(v => {
+    html += `<div class="heatmap-cell ${v==='many'?'many':''}" data-n="${v==='many'?3:v}" style="width:12px;height:12px"></div>`;
+  });
+  html += '<span>more</span></div>';
+
+  heatEl.innerHTML = html;
+}
+
+function renderLog(sessions) {
+  const sorted = [...sessions].sort((a, b) => b.ts.localeCompare(a.ts)).slice(0, 80);
+  if (!sorted.length) {
+    document.getElementById('log-list').innerHTML = '<div class="empty">No sessions logged yet.</div>';
+    return;
+  }
+  const today = todayStr();
+  document.getElementById('log-list').innerHTML = sorted.map(s => {
+    const isToday = s.ts.slice(0,10) === today;
+    return `<div class="log-row">
+      <span class="log-time">${fmtTime(s.ts)}</span>
+      <span class="log-vm">${s.vm}</span>
+      ${isToday ? '<span class="log-badge">today</span>' : ''}
+    </div>`;
+  }).join('');
+}
+
+// Poll every 5 seconds
+fetchData();
+setInterval(fetchData, 5000);
+setTab('vms');
+</script>
+</body>
+</html>
